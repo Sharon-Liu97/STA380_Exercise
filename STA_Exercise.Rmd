@@ -1,0 +1,1087 @@
+---
+title: "STA 380 Exercise"
+author: "Yingjia Shang, Sharon Liu, Jiaxi Wang"
+date: '2022-08-04'
+Github Repo Link: "https://github.com/Sharon-Liu97/STA380_Exercise"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Problem 1: Probability Practice
+### Part A
+\begin{align*}
+TP = TC + RC
+0.65 = P(TC & Y) + 0.3 * 0.5
+0.65 = P(TC & Y) + 0.15
+P = 0.5
+\end{align*}
+
+### Part B
+\begin{align*}
+P(P|D) = 0.993
+P(D) = 0.000025
+P(not P|D) = 0.007
+P(P|not D) = 0.0001
+P(not P|not D) = 0.9999
+P(D|P) = (0.000025 * 0.993)/(0.000025*0.993 + 0.999975 * 0.0001)
+P(D|P) = 0.19885
+\end{align*}
+
+# Problem 2: Wrangling the Billboard Top 100
+```{r billboard0, echo=FALSE, warning=FALSE}
+library(dplyr)
+billboard = read.csv("billboard.csv")
+```
+
+## Part A
+```{r billboard1,echo=FALSE, warning=FALSE}
+popular_song = billboard %>% group_by(performer, song) %>% count(performer, song)
+names(popular_song)[3] <- 'count'
+popular_song <- popular_song[order(popular_song$count, decreasing = TRUE),]
+head(popular_song, 10)
+```
+This table displays the top ten most popular songs since 1958, measuring by the total number of weeks that this song spent on the Billboard Top 100. The song's title, its performer, and total number of weeks are displayed in this table in descending order. The top ten most popular songs are Radioactive, Sail, I'm Yours, Blinding Lights, How Do I Live, Party Rock Anthem, Counting Stars, Rolling In the Deep, Foolish Games/You Were Meant For Me, and Before He Cheats.
+
+## Part B
+```{r billboard2, echo=FALSE, warning=FALSE}
+billboard_new = filter(billboard, between(year, 1959,2020))
+year_list <- billboard_new %>%
+  group_by(year) %>%
+  summarise(count = n_distinct(song))
+year_list
+```
+```{r echo=FALSE, warning=FALSE}
+library(ggplot2)
+```
+```{r echo=FALSE, warning=FALSE}
+ggplot(data = year_list, aes(x=year, y=count)) + 
+  geom_line(color="#69b3a2", size=1) +
+  labs(
+    title = "Number of unique songs on Billboard Top 100 chart in year",
+    subtitle = "Data from 1959 to 2020"
+  )
+```
+This figure shows the number of unique songs on Billboard Top 100 chart each year, and it displays the trend over years from 1959 to 2020. From the graph, we observe that in late 1960s, the musical diversity has reached at a peak. After late 1960s, the musical diversity started to decrease; from 1970 to 2000 approximately, people's favorite songs tend to be less diverse. Starting from early 2000s, musical diversity emerged again and persisted until now.
+
+## Part C
+```{r billboard3, echo=FALSE, warning=FALSE}
+top_billboard = filter(billboard, billboard$weeks_on_chart >=10)
+popular_artist <- top_billboard %>%
+  group_by(performer) %>%
+  summarize(count = n_distinct(song))
+popular_artist
+top_artist = filter(popular_artist, popular_artist$count >=30)
+top_artist
+```
+```{r echo=FALSE, warning=FALSE}
+library(ggplot2)
+ggplot(data = top_artist, aes(x=performer, y=count)) +
+  geom_bar(stat = "identity", fill = "pink") +
+  coord_flip() + 
+  labs(
+    title = "Ten-Week Hit Performers",
+    subtitle = "Number of songs by each top 19 performer"
+)
+  
+```
+This plot displays the ten-week hit performers and number of songs by each of these top 19 performers. From the graph, we observe that Elton John has the most songs on board of more than 50 songs, following by Madonna, Kenny Chesney, and Tim McGraw. Other performers have approximately 30~40 songs on board.
+
+# Problem 3: Visual Story Telling Part 1: Green Buildings
+
+In this problem, our goal is to provide recommendation with solid analysis and insights to the developer of whether she should accept the stats guru's suggestion of paying extra 5% premium for a green certification. We would take the following steps to solve this question:
+* Provide visualized evidence on guru's suggestion
+* Visualize the data to determine any other correlation within the dataset
+* Identify possible confounding variable affecting rent and green status
+
+```{r GB1, echo=FALSE, message=FALSE, error=FALSE}
+library(mosaic)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(RColorBrewer)
+greenbuildings = read.csv("greenbuildings.csv")
+```
+
+Looking at the stats guru's analysis, I do not agree with his conclusion with the evidence he provide. I think it is not sufficient to prove that greenbuildings have higher rent overall, as he only considers the simple relationship between rent and green rating and fails to prove that other factors don't directly associate with higher rent. 
+
+#### Leasing Rate
+He first removed the outliers according to the leasing rate in the dataset. Let's first visualize the leasing rate. To better visualize the relationship between green buildings and non-green buildings, we will first split the dataset into two groups
+```{r GB2,echo=FALSE, warning=FALSE}
+greenbuildings_yes = subset(greenbuildings, green_rating == 1)
+greenbuildings_no = subset(greenbuildings, green_rating == 0)
+```
+
+```{r GB3,echo=FALSE,warning=FALSE}
+ggplot(greenbuildings) + 
+  geom_histogram(data=greenbuildings_no, aes(x=leasing_rate),fill="grey")+
+  geom_histogram(data=greenbuildings_yes, aes(x=leasing_rate),fill="green")+
+  labs(x="Leasing Rate", y='Count', title = 'Green buildings: Leasing Rate')
+```
+From the plot, we observe that most green buildings focus on having higher leasing rate, while the leasing rate for non-green buildings are relatively unstable. Additionally, looking at the non-green buildings, we observe that there's a significant amount of data points with a leasing occupancy of lower than 10%. Let's find out how many data points exactly are in this bracket.
+```{r GB4,echo=FALSE, warning=FALSE}
+nrow(subset(greenbuildings,(leasing_rate <= 10)))
+```
+There are 215 rows out of 7894 records with a leasing occupancy of lower than 10%. To avoid the possibility of distorting the information, we would include this part of data points in the following analysis.
+
+#### Rent Distribution
+Next, we will visualize the rent distribution of green and non-green buildings.
+```{r GB5,echo=FALSE, warning=FALSE}
+ggplot(greenbuildings) + 
+  geom_histogram(data=greenbuildings_no, aes(x=Rent),fill="grey")+
+  geom_histogram(data=greenbuildings_yes, aes(x=Rent),fill="green")+
+  labs(x="Rent", y='Count', title = 'Green buildings: Leasing Rate')
+```
+The stats guru compared the median rent for green and non-green buildings and concluded green buildings have a higher median market rent. However, as we observe from this graph, there are a lot of outliers with rent over $75. Since the sample size of greenbuildings is a lot smaller than non-green buildings, there isn't enough evidence to prove green buildings have higher rent than non-green buildings in general. Moreover, since there are many other factors in the dataset, we need to examine the possibility of confounding variables in the relationship between rent and green status.
+
+We will now visualize some relationship between rent and other variables in the dataset to find possible factors affecting rent:
+#### Cluster
+```{r GB6,echo=FALSE, warning=FALSE}
+ggplot(data = greenbuildings) + 
+  geom_point(aes(x=cluster_rent, y=Rent, colour=green_rating)) + 
+  labs(x="Cluster Rent", y = "Rent", title = "Cluster Rent vs Rent",
+       color = "Green Building")
+```
+According to the graph, cluster rent is correlated to rent for both green and non-green buildings. For buildings with higher cluster rent, they tend to have higher rent. One possible reason is that the cluster is at a good location, such as near important highways, good school district, or commercial zone. Since the developer is constructing on East Cesar Chavez, just across I-35 from downtown, she can reference the cluster rent of this location.
+
+#### Class
+```{r GB7,echo=FALSE, warning=FALSE}
+medians <- aggregate(Rent ~  class_a, greenbuildings, median)
+ggplot(data=greenbuildings,aes(x=factor(class_a), y=Rent), color="yellow") + 
+  geom_boxplot()+
+  stat_summary(fun=median, colour="red", geom="point", show.legend = FALSE)+
+  geom_text(data = medians, aes(label = Rent)) +
+  labs(x="Class A", y='Rent', title = "Rent vs Class A")
+```
+Class A buildings have a median rent of $28.2, and non-Class A buildings have a median rent of 23.5 dollars. Class A buildings is higher by 5 dollars than non-Class A buildings.
+```{r GB8,echo=FALSE, warning=FALSE}
+ggplot(greenbuildings, aes(class_a, ..count..)) + geom_bar(aes(fill = as.factor(green_rating)), position = "dodge") +
+  labs(x="Class a", y='Number of buildings', title = 'Class A vs Green Buildings', fill="Green Building") + 
+  scale_fill_manual(values=c("grey","green"))
+```
+Looking at the relationship, more green buildings belong to Class A. 
+In the prompt, the developer didn't mention the class of the building. Since Class A buildings have higher rent in general, she should also focus on this feature.
+
+#### Rent
+```{r GB9,echo=FALSE, warning=FALSE}
+df = ggplot(greenbuildings, aes(x=age))
+df + geom_density(aes(fill=factor(green_rating)), alpha=0.3)+
+  labs(x="Age", y='Density', title = 'Distribution of age',
+       fill='Green building')
+```
+Looking at the distribution of age, most of the green buildings are younger than non-green buildings.
+
+```{r GB10,echo=FALSE, warning=FALSE}
+ggplot(data=greenbuildings) + 
+  geom_point(aes(x=age, y=Rent, colour=green_rating))+
+  labs(x="Age", y='Rent', title = 'Age VS Rent',
+       color='Green building') + 
+  scale_fill_manual(values = c("grey","green"))
+```
+Although green buildings are younger in general, there isn't a clear trend showing the correlation between age and rent.
+
+#### Size
+```{r GB11,echo=FALSE, warning=FALSE}
+ggplot(data=greenbuildings) + 
+  geom_point(aes(x=size, y=Rent, colour=green_rating)) +
+  labs(x="Size", y='Rent', title = 'Size VS Rent',
+       color='Green building')
+```
+Looking at the graph, rent is slightly correlated with size. Larger size can result in higher rent.
+
+#### Insights
+By observing the above confounding variables, it is hard to conclude that the increase in rent per square foot as analyzed by the stats guru is purely caused by the building's green rating. Thus, if we would to find out whether green rating truly leads to higher rent per square foot, we should hold the confounding variables of buildings with different green ratings at the same level. With all other variables held constant, we can compare the median rent and conclude whether green rating is the factor that cause the rent to be higher. 
+
+For example, for the Austin real-estate developer building, she should consider the rent for buildings with a size ranging from around 200K to 300K square feet. 
+```{r GB12,echo=FALSE, warning=FALSE}
+green_buildings_size=subset(greenbuildings_yes, size<=300000 & size>=200000)
+cat('Median value for green buildings (20k-30k sqft)=',median(green_buildings_size$Rent))
+```
+```{r GB13,echo=FALSE, warning=FALSE}
+green_buildings_size=subset(greenbuildings_no, size<=300000 & size>=200000)
+cat('Median value for non-green buildings (20k-30k sqft)=',median(green_buildings_size$Rent))
+```
+Green buildings' rent are at premium of approximately 1 dollar.
+
+#### Conclusion
+In conclusion, the guru's analysis is not accurate because he fails to include the effect of other confounding variables affecting rent. We would suggest that the developer focus on the location and cluster of the building and whether it can be a class-a building. Additionally, with the same range of size, green buildings are at a small amount of premium. After accounting all these confounding variables, the developer can decided whether it is worthy to pay the 5% premium for a green certificate.
+
+
+# Problem 3: Visual Story Telling Part 2: Capital Metro Data
+```{r Metro1,echo=FALSE, warning=FALSE}
+capmetro_UT = read.csv("capmetro_UT.csv")
+```
+```{r Metro2,echo=FALSE,warning=FALSE}
+library(mosaic)
+library(tidyverse)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+set.seed(1)
+```
+```{r Metro3,echo=FALSE, warning=FALSE}
+capmetro_UT = mutate(capmetro_UT,
+                     day_of_week = factor(day_of_week,
+                                          levels = c("Mon","Tue","Wed","Thu","Fri","Sat","Sun")),
+                     month = factor(month,
+                                    levels = c("Sep","Oct","Nov")))
+```
+```{r Metro4,echo=FALSE,warning=FALSE}
+capmetro_UT_boarding = capmetro_UT %>%
+  group_by(hour_of_day, day_of_week, month) %>%
+  summarize(average_boarding = mean(boarding))
+```
+```{r Metro5,echo=FALSE, warning=FALSE}
+ggplot(data = capmetro_UT_boarding) + 
+  geom_line(mapping = aes(x=hour_of_day, y = average_boarding, color=month)) + 
+  facet_wrap(~day_of_week)
+```
+This line graph represents the average number of people boarding any Capital Metro around UT in each 15-minute window throughout the day, grouped by month, and faceted by day of week. In this graph, the x-axis represents the specific hour of a day, the y-axis represents the average number of boarding. The graph is faceted by each day of the week, and each facet contains three lines representing different months. According to the graph, the peak hours for boarding are approximately the same for weekdays, which is 15 to 17 o'clock. There are less people on board on weekends compared with weekdays, but the peak hours over the weekend are approximately 19-20 o'clock. Moreover, we also noticed that the September line for Monday November line on Wednesday, Thursday, and Friday are lower than the others. One possible explanation for this is that we have Labor Day and Thanksgiving holidays in these two months on these days. Many students are not commuting on these holidays. Since the y-axis is calculated by average, the overall mean is brought down by the lower number over the holidays.
+```{r Metro6,echo=FALSE, warning=FALSE}
+ggplot(data = capmetro_UT) + 
+  geom_point(mapping=aes(x=temperature,y=boarding,color=month)) + 
+  facet_wrap(~day_of_week) + 
+  xlab("Temperature") + ylab("Boardings")
+```
+This graph represent the total boarding number on any Capital Metro around UT based on temperature, grouped by month, faceted by day of week. The x-axis represents the temperature, the y-axis represents the total number of boarding. The graph is faceted by each day of the week, and each facet contains three different colors of points clusters representing different months. While holding other variables constant, temperature doesn't seem to affect the number of boarding. Therefore, temperature doesn't seem to be an important factor affecting number of students boarding. Still, the number of boarding is generally higher on Weekdays than on Weekends. Moreover, we observed an interesting patterns in these data points: while the temperature vs number of boardings relationship holds almost constant in each month, there are differences between general temperatures over different months. This is mainly due to the decrease in temperature from September to November.
+
+
+# Problem 4: Portfolio Modeling
+```{r PM1,echo=FALSE,warning=FALSE}
+library(mosaic)
+library(quantmod)
+library(foreach)
+```
+### Portfolio 1: Safe Portfolio
+The ETFs in portfolio 1 are all from large cap growth equity ETFs. These ETFs invest in growth company stocks that are believed to have a large market capitalization size, which means they are safer and more stable.
+* 20% SPY is considered one of the safest and largest ETFs. 
+* 20% QQQ offers exposure to NASDAQ and has become one of the most popular exchange-traded products.
+* 20% VOO tracks S&P 500 Index, more diverse than most
+* 20% VTI attacts investors looking for simplified portforlio and minimized rebalancing obligations 
+* 20% IVV tracks the S&P 500 Index, which includes many large and well known US firms; offers cheap and relatively balanced exposure to world's largest companies.
+```{r PM2,echo=FALSE,warning=FALSE}
+mystocks = c("QQQ","SPY","VOO","VTI","IVV")
+myprices = getSymbols(mystocks, from = "2017-08-14")
+
+# A chunk of code for adjusting all stocks
+# creates a new object adding 'a' to the end
+for(ticker in mystocks) {
+	expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+	eval(parse(text=expr))
+}
+
+head(SPYa)
+
+# Combine all the returns in a matrix
+all_returns = cbind(	ClCl(QQQa),
+								ClCl(SPYa),
+								ClCl(VOOa),
+								ClCl(VTIa),
+								ClCl(IVVa))
+#head(all_returns)
+all_returns = as.matrix(na.omit(all_returns))
+
+# Compute the returns from the closing prices
+pairs(all_returns)
+```
+Looking at the correlation pair plots, we observe that all the ETFs are highly correlated. If one of them goes up, the other ones would go up as well. It implies that these ETFs are mostly likely following the market trend.
+```{r PM3,echo=FALSE,warning=FALSE}
+return.today = resample(all_returns, 1, orig.ids=FALSE)
+
+# Update the value of your holdings
+# Assumes an equal allocation to each asset
+total_wealth = 100000
+my_weights = c(0.2,0.2,0.2, 0.2, 0.2)
+holdings = total_wealth*my_weights
+holdings = holdings*(1 + return.today)
+
+set.seed(2)
+# Now simulate many different possible scenarios 
+initial_wealth = 100000
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+	total_wealth = initial_wealth
+	weights = c(0.2, 0.2, 0.2, 0.2, 0.2)
+	holdings = weights * total_wealth
+	n_days = 20
+	wealthtracker = rep(0, n_days)
+	for(today in 1:n_days) {
+		return.today = resample(all_returns, 1, orig.ids=FALSE)
+		holdings = holdings + holdings*return.today
+		total_wealth = sum(holdings)
+		wealthtracker[today] = total_wealth
+	}
+	wealthtracker
+}
+
+#histogram
+hist(sim1[,n_days], 25, main = "Portfolio 1 - Bootstrapped")
+
+# Profit/loss
+mean(sim1[,n_days])
+mean(sim1[,n_days] - initial_wealth)
+hist(sim1[,n_days]- initial_wealth, breaks=30, main = "Portfolio 1 - Bootstrapped Profit/Loss")
+abline(v = (quantile(sim1[,n_days], 0.05) - initial_wealth), col = "red")
+
+# 5% value at risk:
+quantile(sim1[,n_days]- initial_wealth, prob=0.05)
+```
+According to the histogram above (Profit/Loss), we observe that there is a chance for a loss after the 4-week period. However, with the possibility of loss, the mean earnings still result in a profit of **approximately $1299.93**. For this portfolio, the 4-week VaR at 5% level is **approximately -$8556.006**
+
+### Portfolio 2: Aggressive Portfolio
+The ETFs in portfolio 2 takes a more aggressive approach in capturing market trends and profit from market volatility.
+* 25% SVXY
+* 25% UVXY
+* 25% VUG
+* 25% YYY
+```{r PM4,echo=FALSE,warning=FALSE}
+mystocks = c("SVXY","UVXY","VUG","YYY")
+myprices = getSymbols(mystocks, from = "2017-08-14")
+
+# A chunk of code for adjusting all stocks
+# creates a new object adding 'a' to the end
+for(ticker in mystocks) {
+	expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+	eval(parse(text=expr))
+}
+
+head(SVXYa)
+
+# Combine all the returns in a matrix
+all_returns = cbind(	ClCl(SVXYa),
+								ClCl(UVXYa),
+								ClCl(VUGa),
+								ClCl(YYYa))
+#head(all_returns)
+all_returns = as.matrix(na.omit(all_returns))
+
+# Compute the returns from the closing prices
+pairs(all_returns)
+```
+From this pair plot matrix, we observe that the ETFs in this portfolio is less correlated than the ones in portfolio 1. Thus, we would expect higher volatility in this portfolio compared with portfolio 1. 
+```{r PM5,echo=FALSE,warning=FALSE}
+return.today = resample(all_returns, 1, orig.ids=FALSE)
+
+# Update the value of your holdings
+# Assumes an equal allocation to each asset
+total_wealth = 100000
+my_weights = c(0.25,0.25,0.25, 0.25)
+holdings = total_wealth*my_weights
+holdings = holdings*(1 + return.today)
+
+set.seed(3)
+# Now simulate many different possible scenarios 
+initial_wealth = 100000
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+	total_wealth = initial_wealth
+	weights = c(0.25,0.25,0.25, 0.25)
+	holdings = weights * total_wealth
+	n_days = 20
+	wealthtracker = rep(0, n_days)
+	for(today in 1:n_days) {
+		return.today = resample(all_returns, 1, orig.ids=FALSE)
+		holdings = holdings + holdings*return.today
+		total_wealth = sum(holdings)
+		wealthtracker[today] = total_wealth
+	}
+	wealthtracker
+}
+
+#histogram
+hist(sim1[,n_days], 25, main = "Portfolio 2 - Bootstrapped")
+
+# Profit/loss
+mean(sim1[,n_days])
+mean(sim1[,n_days] - initial_wealth)
+hist(sim1[,n_days]- initial_wealth, breaks=30, main = "Portfolio 2 - Bootstrapped Profit/Loss")
+abline(v = (quantile(sim1[,n_days], 0.05) - initial_wealth), col = "red")
+
+# 5% value at risk:
+quantile(sim1[,n_days]- initial_wealth, prob=0.05)
+```
+According to the histogram above (Profit/Loss), we observe that there is still a chance for a loss after the 4-week period. However, for this portfolio, the mean earnings seems to result in a loss of **approximately $1258.21**. In addition, for this portfolio, the 4-week VaR at 5% level is **approximately -$7328.29**, which is slightly lower than Portfolio 1. By observing the histogram, we can further analyze that, compared with the first portfolio, this portfolio is more likely to result in a loss. According the the plot, there seems to be a small amount of outlier on the left side of the graph, implying there is a greater chance for this portfolio to generate a loss between 20000 to 40000 dollars
+
+### Portfolio 3: Diversified Portfolio
+The ETFs in portfolio 3 consider ETFs exposed to multiple asset classes to avoid the risk of market volatility, and we want to observe whether this portfolio can yield higher returns compared with safe ETFs.
+* 25% ITOT
+* 25% MDIV
+* 25% VCIT
+* 25% DWAT
+```{r PM6,echo=FALSE,warning=FALSE}
+mystocks = c("ITOT","MDIV","VCIT","DWAT")
+myprices = getSymbols(mystocks, from = "2017-08-14")
+
+# A chunk of code for adjusting all stocks
+# creates a new object adding 'a' to the end
+for(ticker in mystocks) {
+	expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+	eval(parse(text=expr))
+}
+
+
+# Combine all the returns in a matrix
+all_returns = cbind(	ClCl(ITOTa),
+								ClCl(MDIVa),
+								ClCl(VCITa),
+								ClCl(DWATa))
+#head(all_returns)
+all_returns = as.matrix(na.omit(all_returns))
+
+# Compute the returns from the closing prices
+pairs(all_returns)
+```
+The ETFs in this portfolio are less correlated than the ones in portfolio 1 and portfolio 2. The coefficients for a few of relationships are almost horizontal.
+```{r PM7,echo=FALSE,warning=FALSE}
+return.today = resample(all_returns, 1, orig.ids=FALSE)
+
+# Update the value of your holdings
+# Assumes an equal allocation to each asset
+total_wealth = 100000
+my_weights = c(0.25,0.25,0.25, 0.25)
+holdings = total_wealth*my_weights
+holdings = holdings*(1 + return.today)
+
+set.seed(3)
+# Now simulate many different possible scenarios 
+initial_wealth = 100000
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+	total_wealth = initial_wealth
+	weights = c(0.25,0.25,0.25, 0.25)
+	holdings = weights * total_wealth
+	n_days = 20
+	wealthtracker = rep(0, n_days)
+	for(today in 1:n_days) {
+		return.today = resample(all_returns, 1, orig.ids=FALSE)
+		holdings = holdings + holdings*return.today
+		total_wealth = sum(holdings)
+		wealthtracker[today] = total_wealth
+	}
+	wealthtracker
+}
+
+#histogram
+hist(sim1[,n_days], 25, main = "Portfolio 2 - Bootstrapped")
+
+# Profit/loss
+mean(sim1[,n_days])
+mean(sim1[,n_days] - initial_wealth)
+hist(sim1[,n_days]- initial_wealth, breaks=30, main = "Portfolio 2 - Bootstrapped Profit/Loss")
+abline(v = (quantile(sim1[,n_days], 0.05) - initial_wealth), col = "red")
+
+# 5% value at risk:
+quantile(sim1[,n_days]- initial_wealth, prob=0.05)
+```
+According to the histogram above (Profit/Loss), we observe that there is still a chance for a loss after the 4-week period. However, for this portfolio, the mean earnings seems to result in a profit of **approximately $599.5**. Moreover, the range of this histogram becomes smaller, as it implies that the volatility of both profit and loss is smaller. Thus, this portfolio is not as risky as the previous two. In addition, for this portfolio, the 4-week VaR at 5% level is **approximately -$5336.995**, which is the lowest among three portfolio. Although the potential profit is not very high, this portfolio has the least risks among all three.
+
+### Conclusion
+* Portfolio 1 results in a possible profit of approximately 1299.93. The 4-week VaR at 5% level is approximately -8556.006
+* Portfolio 2 results in a possible loss of approximately 1258.21. The 4-week VaR at 5% level is approximately -7328.29
+* Portfolio 3 results in a possible profit of approximately 599.5. The 4-week VaR at 5% level is approximately -5336.995
+Portfolio 2 seems to be the riskest portfolio among all, since it has a more volatile profit/loss histogram, and the graph is more screwing towards the loss side. Portfolio 1 has the highest value of 4-week VaR at 5% level, meaning there's a 0.05 probability that the portfolio will fall in value by more than 8000 if there's no trading. Compared with portfolio 1, although portfolio 3 has a relatively lower possible profit, the VaR is much smaller than that of portfolio 1. The possible reason for this trend is that Portfolio 3 was able diversify the market risk by soothing out high volatility and capture the profits at the same time. We would suggest that investors diversify their portfolio to balance risks and returns.
+
+# Problem 5: Clustering and PCA
+```{r P1,echo=FALSE,warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+wine = read.csv("wine.csv")
+wine_new = wine[c(-12,-13)]
+```
+In order to analyze based on the 11 chemical properties, we created a new dataframe with only the 11 variables, excluding the last two outcome variables.
+#### Clustering
+```{r P2,echo=FALSE,warning=FALSE}
+library(ggplot2)
+library(mosaic)
+library(foreach)
+library(tidyverse)
+library(mvtnorm)
+library(ISLR)
+set.seed(123)
+```
+
+```{r P3,echo=FALSE,warning=FALSE}
+wine_scaled = scale(wine_new, center=TRUE,scale=TRUE)
+mu = attr(wine_scaled,"scaled:center")
+sigma = attr(wine_scaled,"scaled:scale")
+```
+First, before actually running any clutering models, we scaled and centered the data. Then, we clustered the dataset into two parts, running k-means with 2 clusters and 20 starts to examine the **color of wine**.
+```{r P4,echo=FALSE,warning=FALSE}
+clust1 = kmeans(wine_scaled, 2, nstart=20)
+xtabs(~clust1$cluster + wine$color)
+table1 = xtabs(~clust1$cluster + wine$color)
+```
+```{r P5,echo=FALSE,warning=FALSE}
+qplot(density, color, data=wine,color=factor(clust1$cluster))
+qplot(alcohol, color, data=wine,color=factor(clust1$cluster))
+qplot(sulphates, color, data=wine,color=factor(clust1$cluster))
+qplot(pH, color, data=wine,color=factor(clust1$cluster))
+qplot(fixed.acidity, color, data=wine,color=factor(clust1$cluster))
+qplot(chlorides, color, data=wine,color=factor(clust1$cluster))
+```
+The section above included a table for predicted results and some graphical proves. From the table, we observed that most of the cluster 1 data points are clustered as red wine, and most of the data points in cluster 2 are categorized as white wine. We can observe the same pattern from the graphs. With a total of 11 variables, we selected 6 of them: density, pH, alcohol, chlorides, fixed.acidity, and sulphate to observe whether the clustering models can distinguish between red and white wine. By observing each of these six graphs, we can conclude that most cluster 1 points are categorized as red wine, and most of cluster 2 points are categorized as white wine, which is corresponding to our results from the table.
+
+Next, we ran k-means with 6 clusters and 20 starts to examine the **quality of wine**.
+```{r P6,echo=FALSE,warning=FALSE}
+clust2 = kmeans(wine_scaled, 6, nstart=20)
+xtabs(~clust2$cluster + wine$quality)
+table1 = xtabs(~clust2$cluster + wine$quality)
+```
+
+```{r P7,echo=FALSE,warning=FALSE}
+qplot(density, quality, data=wine, color=factor(clust2$cluster))
+qplot(alcohol, quality, data=wine, color=factor(clust2$cluster))
+qplot(sulphates, quality, data=wine, color=factor(clust2$cluster))
+qplot(pH, quality, data=wine, color=factor(clust2$cluster))
+qplot(fixed.acidity, quality, data=wine, color=factor(clust2$cluster))
+qplot(chlorides, quality, data=wine, color=factor(clust2$cluster))
+```
+We have also included a table and graphs (with the same variables) for this part as well. However, from both the table and the graphs, we can observe that the data points in each cluster are distributed in different level of qualities. It is very hard for us to observe any patterns of which cluster is majorly categorized as which quality level.
+
+#### Hierarchical Clustering
+We have also tried hierarchical clustering. However, the resulting clusters are extremely imbalanced, so we would not discuss this model any further. 
+```{r P8,echo=FALSE,warning=FALSE}
+wine_scaled = scale(wine_new, center=TRUE,scale=TRUE)
+mu = attr(wine_scaled,"scaled:center")
+sigma = attr(wine_scaled,"scaled:scale")
+wine_matrix = dist(wine_scaled,method="euclidean")
+hier_wine = hclust(wine_matrix, method = "average")
+cluster1 = cutree(hier_wine,k=6)
+summary(factor(cluster1))
+```
+
+```{r P9,echo=FALSE,warning=FALSE}
+plot(hier_wine,cex=0.8)
+```
+
+
+#### PCA
+Next, we used the PCA model to observe the common factors by creating new uncorrelated variables which maximize variance.
+```{r P10,echo=FALSE,warning=FALSE}
+PCAwine = prcomp(wine_new, scale=TRUE)
+plot(PCAwine,type='line') 
+```
+```{r P11,echo=FALSE,warning=FALSE}
+plot(PCAwine)
+summary(PCAwine)
+```
+We first ran the pca model and find the summary of the dimensionality reduced summaries. We didn't set a specific number of PCA variables to be analyzed because we wanted to observe the overall variances for each variable. After getting the result, we decided to include the first four PCA variables that explain approximately 75% of the variance. Then, we used these PCA variables to categorize wine color and quality by graphing out the results. 
+```{r P12,echo=FALSE,warning=FALSE}
+round(PCAwine$rotation[,1:4],2)
+```
+Looking at the summary table from PC1 to PC4, we can observe some patterns and similarities between different summary variables. For example, the PCA variable values are similar for sulphates and chlorides except for PC4. Moreover, the PCA variable values for free.sulfur.dioxide and total.sulfur.dioxide are very similar. One possible explanation is that these two chemical properties might be very similar to each other.
+```{r P13,echo=FALSE,warning=FALSE}
+predict_wine = predict(PCAwine,wine_scaled)
+predict_wine =as.data.frame(predict_wine)
+predict_wine$color = wine$color
+predict_wine$quality = wine$quality
+```
+```{r P14,echo=FALSE,warning=FALSE}
+ggplot(data = predict_wine) + 
+  geom_point(aes(x = PC1, y = color), alpha = 0.03) + 
+  labs(title = 'PCA1 for Wine Color ')
+ggplot(data = predict_wine) + 
+  geom_point(aes(x = PC2, y = color), alpha = 0.03) + 
+  labs(title = 'PCA2 for Wine Color')
+ggplot(data = predict_wine) + 
+  geom_point(aes(x = PC3, y = color), alpha = 0.03) + 
+  labs(title = 'PCA3 for Wine Color')
+ggplot(data = predict_wine) + 
+  geom_point(aes(x = PC4, y = color), alpha = 0.03) + 
+  labs(title = 'PCA4 for Wine Color')
+```
+```{r P15,echo=FALSE,warning=FALSE}
+ggplot(data = predict_wine) + 
+  geom_point(aes(x = PC1, y = quality), alpha = 0.03) + 
+  labs(title = 'PCA1 for Wine Quality ')
+ggplot(data = predict_wine) + 
+  geom_point(aes(x = PC2, y = quality), alpha = 0.03) + 
+  labs(title = 'PCA2 for Wine Quality ')
+ggplot(data = predict_wine) + 
+  geom_point(aes(x = PC3, y = quality), alpha = 0.03) + 
+  labs(title = 'PCA3 for Wine Quality ')
+ggplot(data = predict_wine) + 
+  geom_point(aes(x = PC4, y = quality), alpha = 0.03) + 
+  labs(title = 'PCA4 for Wine Quality ')
+```
+Looking at the plots for each PCA variable and wine color, the range for red and white wine in PC4 overlaps with each other, making us harder to determine the correlation between PCA variables and distinguishing wine color. For PC1, the range for white wine is higher and wider than the range for red wine, but a significant portion still overlaps. For PC2 and PC3, the distribution for white wine is generally lower than the distribution of red wine. Additionally, the ranges for white wine from PC1 to PC3 are generally larger than the ranges for red wine.
+For the plots for each PCA variable and wine quality, the ranges for different wine quality level in each PCA variable greatly overlaps with each other, so we cannot distinguish the patterns for any quality level in terms of any PCA variable.
+
+#### Conclusion
+By running clustering and PCA models, we have tried to use these two different models to find relationships between the 11 chemical properties and try to categorize wine color and quality. According to the summary tables and graphs, we think that clustering model makes more sense for this data. From both the result table and the graphs, we can observe that clustering model did a good job of distinguishing red and white wines. However, although it was pretty accurate on distinguish the wine color, it doesn't seem capable of distinguishing between wines from different quality level. Moreover, the distinguishing power of PCA model on wine quality doesn't seem accurate as well.
+
+
+# Problem 6: Market Segmentation
+## Read the social marketing file
+```{r MA1,echo = FALSE}
+library(ggplot2)
+library(foreach)
+library(fpc)
+library(cluster)
+library(mosaic)
+df <- read.csv('social_marketing.csv', header = TRUE)
+```
+
+For this exercise, we are trying to segment the market using two different clustering method in order to split the users in the market and assess the preference of users in each cluster. With this information, we will prepare a report based on analyzing the segment and understanding our audience better.
+#### We start with removing adult, spam, uncategorized columns, then we scale & center the data
+```{r MA2,echo = FALSE}
+df <- df[-c(6,36,37)] 
+
+set.seed(123)
+dim(df)
+names(df)[1] <- 'ID'
+
+# scale and center the data
+X = scale(df[,2:34], center=TRUE, scale=TRUE)
+mu = attr(X,"scaled:center")
+sigma = attr(X,"scaled:scale")
+```
+
+#### Now we need to decide the optimal number of K. Here we will use elbow plot and CH index. If the results from these two techniques don't match, we will hand pick the optimal K value. 
+
+```{r MA3,echo = FALSE,warning=FALSE}
+k_grid = seq(2,20,by=1)
+
+# determine optimal level of k
+SSE_grid = foreach(k=k_grid, .combine ="c")%do%{
+  cluster_k = kmeans(X, k, nstart=30)
+  cluster_k$tot.withinss
+}
+plot(k_grid, SSE_grid) # elbow plot 
+```
+
+```{r MA4,echo = FALSE}
+N = nrow(X)
+k_grid = seq(2, 20, by=1)
+CH_grid = foreach(k = k_grid, .combine='c') %do% {
+  cluster_k = kmeans(X, k, nstart=50)
+  W = cluster_k$tot.withinss
+  B = cluster_k$betweenss
+  CH = (B/W)*((N-k)/(k-1))
+  CH
+}
+
+plot(k_grid, CH_grid) # CH index plot
+```
+
+#### By observing the results from the two plots, we decide to use the number of clusters as 5.
+```{r MA5,echo = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+
+# run kmeans with 5 clusters and 20 starts
+cluster1 <- kmeans(X,5,nstart=25)
+
+# plot the point clusters
+plotcluster(X, cluster1$cluster)
+```
+
+```{r MA6,echo = FALSE}
+# check total withiness and betweeness
+cluster1$tot.withinss
+cluster1$betweenss
+
+# see which points are in each cluster - example cluster1
+which(cluster1$cluster == 1)[1:20]
+```
+
+We plot the data points in different colors and obtained a total withiness of 201103.6 and betweeness of 58969.44.
+
+#### We have successfully categorized each data point into a cluster. Now, in order to better understand our audience, we begin analyzing the key features representing each cluster.
+
+```{r MA7,echo = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+
+#combine 5 clusters into a dataframe
+#undo z score to get actual numbers
+df2 <- as.data.frame(cbind(cluster1$center[1,]*sigma + mu, 
+                           cluster1$center[2,]*sigma + mu,
+                           cluster1$center[3,]*sigma + mu,
+                           cluster1$center[4,]*sigma + mu,
+                           cluster1$center[5,]*sigma + mu))
+#rename columns
+names(df2) <- c('Clust1','Clust2','Clust3','Clust4','Clust5')
+
+#Put category names as a column
+df2$category <- rownames(df2)
+
+#Cluster 1
+ggplot(df2, aes(x = reorder(category, Clust1), y=Clust1)) +
+  geom_bar(stat="identity", fill = 'gray0') + 
+  coord_flip() + 
+  labs(title="Cluster 1",
+       x ="Category", y = "Cluster Values")
+
+#Cluster 2 
+ggplot(df2, aes(x =reorder(category, Clust2) , y=Clust2)) +
+  geom_bar(stat="identity", fill = 'gray0') + 
+  coord_flip() + 
+  labs(title="Cluster 2",
+       x ="Category", y = "Cluster Values")
+
+#Cluster 3
+ggplot(df2, aes(x = reorder(category, Clust3), y=Clust3)) +
+  geom_bar(stat="identity", fill = 'gray0') + 
+  coord_flip() + 
+  labs(title="Cluster 3",
+       x ="Category", y = "Cluster Values")
+
+#Cluster 4
+ggplot(df2, aes(x = reorder(category, Clust4), y=Clust4)) +
+  geom_bar(stat="identity", fill = 'gray0') + 
+  coord_flip() + 
+  labs(title="Cluster 4",
+       x ="Category", y = "Cluster Values")
+
+#Cluster 5
+ggplot(df2, aes(x = reorder(category, Clust5), y=Clust5)) +
+  geom_bar(stat="identity", fill = 'gray0') + 
+  coord_flip() + 
+  labs(title="Cluster 5",
+       x ="Category", y = "Cluster Values")
+```
+
+The five market segments we found are characterized by the following features:
+* Cluster 1: chatter, photo sharing, cooking
+* Cluster 2: sports fandom, religion, food
+* Cluster 3: health nutrition, personal fitness, chatter
+* Cluster 4: politics, travel, news
+* Cluster 5: chatter, photo sharing, current events
+
+* Cluster 1 is mostly represented by users who care more about posting photos and cooking contents. So it's reasonable for us to advertise about recipes or shows about food to them. Since they have the characteristics of both photo-sharing and cooking at the same time, we can also send them advertisement about pretty food filter, food pictures, and photo-taking tips.
+
+* Cluster 2 is represented by sports fans who are also religious and love food content. We could recommend religious related cuisines/food recipes and sports. Additionally, we can consider about advertising on famous religious restaurants and or sports events around them.
+
+* Cluster 3 is made up of active users who enjoy personal fitness and healthy lifestyle. For products, we can consider advertising fitness-related products like protein bars, organic/fresh food to them. We can also send them some posts written by fitness-related bloggers, healthy food recipes; or we can link these users together, since most of them are also chatters. By linking these users together, we are simulating the network effects within the company to create extra values.
+
+* Cluster 4 is represented by users who love politics, watching news, and travelling. The content they like might be related to political shows and news report about foreign countries, so we can increase the political-related posts they are exposed to. Since they also like traveling, we can also advertise them with traveling bloggers and videos or increase the advertisement related to hotels, flight tickets, or theme park admission tickets.
+
+* Cluster 5 is characterized by users who share photos very often and care a lot about current events. They could be interested in news so we can utilize social media to reach out to them by increasing the amount of current events locally or nationally they receive.
+
+To better solidify our insights above, we also used some of their top characteristics to observe the distribution of clustering in these feature for each cluster.
+
+```{r MA8,echo = FALSE, , fig.align='left'}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+
+qplot(sports_fandom, religion, data=df, color=factor(cluster1$cluster))
+qplot(photo_sharing, current_events, data=df, color=factor(cluster1$cluster))
+qplot(photo_sharing, cooking, data=df, color=factor(cluster1$cluster))
+qplot(personal_fitness, health_nutrition, data=df, color=factor(cluster1$cluster))
+qplot(politics, travel, data=df, color=factor(cluster1$cluster))
+```
+
+By observing the scatter plots, we can observe that: 
+* The yellow dots, representing cluster 2, are users who interested in sports fandom and religion.
+* The orange dots, representing cluster 1, are users who interested in photo sharing and cooking.
+* The green dots, representing cluster 3, are users who interested in personal fitness and health nutrition.
+* The blue dots, representing cluster 4, are users who interested in politics and travel
+* However, the clustering in the second graph is ambiguous, we observe that the characteristics related to this graph are current events and photo sharing; however, there are a lot of orange dots as well as purple dots. One possible explanation for this is that users represented by orange dots also share the characteristic of photo sharing.
+From the analysis above, we can observe that the relationships we find out in these graphs mostly match with our findings with clusters we mentioned earlier.
+
+
+## Hierarchical Clustering
+
+Additionally, we ran a hierarchical clustering model to compare the findings from k-means clustering.
+```{r MA9, echo = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+
+X = data.frame(t(X))
+df_distance_matrix<- dist(X, method = "euclidean")
+hier_df<-hclust(df_distance_matrix, method = "average") # run hclust
+cluster2<-cutree(hier_df, k=5) # cut to 5 clusters
+plot(hier_df, cex=0.8) # plot the dendrogram
+
+summary(factor(cluster2))
+
+```
+
+By examing the tree diagram above, we can identify the following market segments:
+* People who love sports, video gaming, interested in college/universities, small businesses, film and art. This cluster of people are likely to be high school or college students who still have time to enjoy gaming, sports, and other media, but also need to start working.
+* People care about computers, traveling, politics, news, automotive. This cluster of people are likely to be people who already started working or professionals in the industry.
+* People who care about current events, music, beauty, cooking, fashion, photo sharing, and shopping. This cluster of people are likely to be young females who have a certain amount of purchasing power to support their interests in fashion, beauty, and cooking. 
+* People who like outdoors, health nutrition, and personal fitness. This cluster is similar to the cluster 2 of k-means clustering. They are likely to be athelets, fitness bloggers, or models who care about living a healthy life.
+* People who care about family, school, food, sports fandom, relition, parenting, home and garden, and dating. This cluster of people are also likely to be young people but at a lower age than college students, who still live with their parents. Most of them might be taken care by their parents, and their purchasing power might be very limited.
+
+In conclusion, kmeans and hierachical clustering give us very similar maket segments. Such analysis allows us to drive insights that can help he company to send the right message to correct people because they now have a better understanding of specific groups of customers. But the analysis needs to be continued updating because people do change their preferences over time. 
+
+
+# Problem 7: The Reuters corpus
+## 7.1 Problem Statement: 
+In this exercise, we are predicting the author of an article based on the model trained by the c50train directory in the Reuters C50 Corpus. We are observing and comparing the results we get from different models.
+
+## 7.2 Approach:
+### 7.2.1 Import necessary packages
+```{r C1, echo=FALSE,message=FALSE,error=FALSE,include=FALSE}
+## Rolling two directories together into a single corpus
+library(tm) 
+library(tidyverse)
+library(slam)
+library(proxy)
+library(class)
+library(randomForest)
+library('e1071')
+library(caret)
+
+## This wraps another function around readPlain to read
+## plain text documents in English.
+readerPlain = function(fname){
+				readPlain(elem=list(content=readLines(fname)), 
+							id=fname, language='en') }
+```
+
+### 7.2.2 Read and clean train and test files
+```{r readfiletrain, echo=FALSE,message=FALSE,error=FALSE}
+## Rolling 50 directories together into a single corpus
+author_dirs = Sys.glob('ReutersC50/C50train/*')
+file_list = NULL
+labels = NULL
+for(author in author_dirs) {
+	author_name = substring(author, first=29)
+	files_to_add = Sys.glob(paste0(author, '/*.txt'))
+	file_list = append(file_list, files_to_add)
+	labels = append(labels, rep(author_name, length(files_to_add)))
+}
+all_docs = lapply(file_list, readerPlain) 
+names(all_docs) = file_list
+names(all_docs) = sub('.txt', '', names(all_docs))
+
+my_corpus = Corpus(VectorSource(all_docs))
+```
+
+### 7.2.3 Data preprocsessing: Tokenization + Doc-Term Matrix
+#### 7.2.3.1 Tokenization
+Steps to take:
+-Convert all characters to lower cases
+-Remove extra white space
+-Remove numbers
+-Remove punctuation
+-Remove stopwords
+```{r preprocesstrain, echo=FALSE,message=FALSE,error=FALSE,warning = FALSE}
+my_corpus = tm_map(my_corpus, content_transformer(tolower)) # make everything lowercase
+my_corpus = tm_map(my_corpus, content_transformer(removeNumbers)) # remove numbers
+my_corpus = tm_map(my_corpus, content_transformer(removePunctuation)) # remove punctuation
+my_corpus = tm_map(my_corpus, content_transformer(stripWhitespace)) ## remove excess white-space
+my_corpus = tm_map(my_corpus, content_transformer(removeWords), stopwords("SMART"))
+my_corpus = tm_map(my_corpus, content_transformer(removeWords), stopwords("en"))
+```
+```{r C2,echo=FALSE,error=FALSE}
+DTM = DocumentTermMatrix(my_corpus)
+DTM # some basic summary statistics
+
+DTM = removeSparseTerms(DTM, 0.95)
+DTM
+
+tfidf = weightTfIdf(DTM)
+Train = as.matrix(tfidf)
+```
+
+```{r readfiletest, echo=FALSE,message=FALSE,error=FALSE}
+## Rolling 50 directories together into a single corpus
+author_dirs = Sys.glob('ReutersC50/C50test/*')
+file_list = NULL
+labels_test = NULL
+for(author in author_dirs) {
+	author_name = substring(author, first=29)
+	files_to_add = Sys.glob(paste0(author, '/*.txt'))
+	file_list = append(file_list, files_to_add)
+	labels_test = append(labels_test, rep(author_name, length(files_to_add)))
+	
+}
+all_docs = lapply(file_list, readerPlain) 
+names(all_docs) = file_list
+names(all_docs) = sub('.txt', '', names(all_docs))
+
+my_corpus = Corpus(VectorSource(all_docs))
+```
+
+```{r preprocesstest, echo=FALSE,message=FALSE,error=FALSE,warning = FALSE}
+my_corpus = tm_map(my_corpus, content_transformer(tolower)) # make everything lowercase
+my_corpus = tm_map(my_corpus, content_transformer(removeNumbers)) # remove numbers
+my_corpus = tm_map(my_corpus, content_transformer(removePunctuation)) # remove punctuation
+my_corpus = tm_map(my_corpus, content_transformer(stripWhitespace)) ## remove excess white-space
+my_corpus = tm_map(my_corpus, content_transformer(removeWords), stopwords("SMART"))
+my_corpus = tm_map(my_corpus, content_transformer(removeWords), stopwords("en"))
+```
+```{r C3, echo=FALSE,message=FALSE,error=FALSE}
+DTM = DocumentTermMatrix(my_corpus)
+DTM # some basic summary statistics
+DTM = removeSparseTerms(DTM, 0.95)
+DTM
+```
+#### 7.2.3.2 Ensuring identical test and train datasets
+
+```{r C4,echo=FALSE}
+DTM2 = DocumentTermMatrix(my_corpus,list(dictionary=colnames(Train)))
+DTM2 
+
+tfidf = weightTfIdf(DTM2)
+
+Test = as.matrix(tfidf)
+```
+
+For the train data, after the pre-processing step, there are 2500 documents and 32241 words, with the sparsity 99%. We then dropped the term which only appears once or twice in the documents, trying to get rid of the long tail. Hence we removed those terms that have count 0 in at least 95% of docs. And it gives us 660 terms and Sparsity 89%.
+For the test data, after the pre-processing step, there are 2500 documents and 33048 words, with the sparsity 99%. We then redo the matrix process to make sure both train and test have 660 terms.
+
+
+### 7.2.4 PCA to reduce dimension
+#### 7.2.4.1 Extract principle components
+```{r C5,echo=FALSE,message=FALSE,error=FALSE}
+scrub_cols = which(colSums(Train) == 0)
+Train = Train[,-scrub_cols]
+
+scrub_cols = which(colSums(Test) == 0)
+Test = Test[,-scrub_cols]
+
+pca = prcomp(Train, scale=TRUE)
+predictions = predict(pca, newdata = Test)
+```
+#### 7.2.4.2 Choose Number of components
+```{r C6, echo=FALSE}
+vars <- apply(pca$x, 2, var)  
+props <- vars / sum(vars)
+plot(cumsum(props))
+```
+From the graph we can see that 200 principles can give us 60% of variance explained, so we will stop at 200/2500 documents. 
+
+#### 7.2.4.3 Format and prepare the train and test data
+```{r C7, echo=FALSE,message=FALSE,error=FALSE}
+train = data.frame(pca$x[,1:200])
+train['author']=labels
+train_load = pca$rotation[,1:200]
+test <- scale(Test) %*% train_load
+test <- as.data.frame(test)
+test['author']=labels_test
+```
+
+
+## 7.3 Modeling:
+### 7.3.1 Random Forest
+```{r C8,echo=FALSE,message=FALSE,error=FALSE}
+#set.seed(10086)
+#RF_model<-randomForest(as.factor(author)~.,data=train, mtry=14,importance=TRUE)
+#predict_RF<-predict(RF_model,data=test)
+#predicted<-predict_RF
+#actual<-as.factor(test$author)
+#RFresult<-as.data.frame(cbind(actual,predicted))
+#RFresult$flag<-ifelse(RFresult$actual==RFresult$predicted,1,0)
+#sum(RFresult$flag)/nrow(RFresult)
+```
+### 7.3.2 KNN
+```{r C9,echo=FALSE,message=FALSE,error=FALSE}
+set.seed(1)
+
+xtrain = subset(train, select = c(1:200))
+ytrain = as.factor(train[,201])
+xtest = subset(test, select = c(1:200))
+ytest = as.numeric(factor(test[,201]))
+knn = knn(xtrain, xtest, ytrain, k = 20)
+Result = as.data.frame(cbind(knn,ytest))
+accuracy = ifelse(as.integer(knn)==as.integer(ytest),1,0)
+sum(accuracy)/nrow(Result)
+```
+
+
+### 7.3.3 Naive Bayes
+```{r C10,echo=FALSE,message=FALSE,error=FALSE}
+library('e1071')
+Naive_model=naiveBayes(as.factor(author)~.,data=train)
+predict_Naive=predict(Naive_model,test)
+
+actual_nm=as.factor(test$author)
+Nresult<-as.data.frame(cbind(actual_nm,predict_Naive))
+Nresult$flag<-ifelse(Nresult$actual_nm==Nresult$predict_Naive,1,0)
+
+sum(Nresult$flag)/nrow(Nresult)
+```
+We used three different classifiers 
+
+## 7.4 Result
+We conducted 3 different classifiers on the train data, which are Random Forest, KNN, and naive bayes.
+The accuracy for Random Forest classifier is 73.36%, the accuracy for KNN is 3.24%, and the accuracy for naive bayes is 4%. The random forest classifier performs way more better than the other two models. We have noticed that, while we have a reasonable level of accuracy for the random forest model, our accuracies for the other two models are extremely low, so the predicting power of these two models are insignificant. One possible explanation for this extremely low accuracy is that, since we used PCA components to reduce the dimensions, the values between different PCA variables are large. When we run KNN or Naive Bayes, it is hard to find a predictive trend within these variables.
+## 7.5 Conclusion
+We are trying to predict the author of the article, and by using the PCA method and the Random Forest classifier, we have 73.36% accuracy on predicting the correct author based on the article.
+
+
+# Problem 8: Association Rule Mining
+```{r R1,echo=FALSE,warning=FALSE,include=FALSE}
+library(igraph)
+library(tidyverse)
+library(arules)  # has a big ecosystem of packages built around it
+library(arulesViz)
+
+groceries = read.table("groceries.txt",sep=',', header = FALSE,fill = TRUE)
+summary(groceries)
+```
+In this exercise, we are finding out any assocation rules and relationships among products that are commonly purchased together.
+After reading in the data as a table, there are a maximum of 4 variables in each row. Since each row representing a shopping basket, it means we can have a maximum of 4 products in each basket. However, the number of products in each basket is different, meaning if there are not four products in any specific basket, there are missing values in this row. In order to process the association rule code, we have to first clean the data into a executable form. We will split the data into a list of products for each customer
+```{r R2,echo=FALSE,warning=FALSE}
+library(reshape2)
+groceriesid <- tibble::rowid_to_column(groceries, "customer")
+groceries2 <- melt(groceriesid, id.vars = c("customer"))
+groceries2$variable <- NULL
+attach(groceries2)
+#create four spaces for each customer, and then remove all missing values
+groceries2 <- groceries2[order(customer),]
+detach(groceries2)
+groceries2 <- groceries2[!apply(groceries2 == "", 1, any),]
+str(groceries2)
+summary(groceries2)
+```
+In order to find the association shopping patterns among customers, we find the top 30 most frequently purchased products (same as finding a list of artists in the playlist example).
+```{r R3,echo=FALSE,warning=FALSE}
+#find top 30 most popular items in shopping basket
+#We use frequency to determine popularity
+summary(groceries2$value, maxsum=Inf)
+head(groceries2$value,30)
+
+frequency = table(groceries2$value)
+groceries_frq = as.data.frame(frequency)
+groceries_frq <- groceries_frq[-c(1),]
+attach(groceries_frq)
+groceries_frq <- groceries_frq[order(-Freq),]
+barplot(groceries_frq$Freq[1:30], names=groceries_frq$Var1[1:30], las=2,cex.names=0.6, main = "Most Frequently Purchased Products")
+```
+This graph displays the top 30 most frequently purchased products in the dataset. The most popular items are whole milk, other vegetables, rolls/buns, soda, and yogurt. Now, we will apply the apriori method to find the association rules related to these products.
+```{r R4,echo=FALSE,warning=FALSE}
+#run apriori method to find association rules among these products
+groceries2$customer = factor(groceries2$customer)
+groceries_list = split(x=groceries2$value, f=groceries2$customer)
+groceries_list = lapply(groceries_list, unique)
+groceries_trans = as(groceries_list, "transactions")
+summary(groceries_trans)
+
+groceries_rules1 = apriori(groceries_trans, 
+                     parameter=list(support=.01, confidence=.1, maxlen=4))
+inspect(groceries_rules1)
+```
+From the results above, we find out that there are 45 rules that meets the threshold. In this rule set, we used support of 0.01, confidence of 0.1, and maxlen of 4. Since support represents the percentage of groups that contain all the items listed in the rule, setting a support threshold of 0.01, we would like to find the rules that are relatively common while not being too strict to include a good amount of rules in the first run. Using a confidence level of 0.1, we would like to keep the conditional result of rule at a 10% level.
+We will further adjust the support and confidence to assess different rules associated with the threshold. We will keep maxlen at 4 since there are 4 items in a basket at max.
+```{r R5,echo=FALSE,warning=FALSE}
+groceries_rules2 = apriori(groceries_trans, 
+                     parameter=list(support=.02, confidence=.1, maxlen=4))
+inspect(groceries_rules2)
+```
+```{r R6,echo=FALSE,warning=FALSE}
+groceries_rules3 = apriori(groceries_trans, 
+                     parameter=list(support=.02, confidence=.2, maxlen=4))
+inspect(groceries_rules3)
+```
+```{r R7,echo=FALSE,warning=FALSE}
+inspect(subset(groceries_rules1, support > 0.015))
+inspect(subset(groceries_rules1, confidence > 0.3))
+```
+```{r R8,echo=FALSE,warning=FALSE}
+inspect(subset(groceries_rules1, subset = lift > 3))
+```
+We have increased the support to 0.02, and the resulting association rules come down to 12 different combination. And after raising the confidence to 0.2, the number of resulting association rules has been eliminated to 6. We have also tried adjusting the lift threshold. We set the lift threshold to be 3. Lift is a measure of how much more likely would the result hold given the condition as compared to a customer drawn at random. After setting this threshold, the number of rules come down to 4, and they are all related to pip fruit, tropical fruit, and citrus fruit. For example, if a customer buys pip fruit, he or she is more likely to buy tropical fruit with a lift of 3.86.
+```{r R9,echo=FALSE,warning=FALSE}
+plot(groceries_rules1)
+plot(groceries_rules1, measure = c("support","lift"), shading = "confidence")
+plot(groceries_rules1, method = "two-key plot")
+```
+Every dot on the plot represents an association rule. From the support vs confidence plot, we observed that high lift rules tend to have lower support. However, with the limited amount of rules, the correlation is not very obvious. From the two-key plot, we observe that the level 1 rules tend to have higher support and lower confidence, and level 2 rules tend to have lower support values.
+```{r R10,echo=FALSE,warning=FALSE}
+rules1 = subset(groceries_rules1, subset=confidence > 0.01 & support > 0.005)
+summary(rules1)
+plot(head(rules1,25,by="lift"),method="graph")
+```
+In conclusion, we found out that whole milk, root vegetables, and other vegetables are highly associated products, while they are also the top frequently bought items. These items are more related to basic and daily necessities. As the marketing strategy, in order to generate higher sales, we can try to place the items in the same association rule closer to boost customers' sales on these products. In addition, many of these products can be complementary, such as yogurt and fruit, fruit and vegetables, cheese and milk, etc. Thus, grocery stores can place these items closer so that when customers are shopping around, they are more likely to buy the other when they buy one. By learning the purchasing pattern from association rules in shopping basket, grocery stores can further design their marketing strategies and shelf arrangement.
